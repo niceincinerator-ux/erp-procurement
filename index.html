@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Form Permohonan Barang</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-200 p-4 font-sans">
+
+    <div class="max-w-md mx-auto bg-white p-6 rounded-xl shadow-lg mt-4">
+        <div class="text-center mb-6">
+            <h1 class="text-2xl font-extrabold text-blue-700">📝 Form Request</h1>
+            <p class="text-sm text-gray-500">Ajukan kebutuhan barang gudang</p>
+        </div>
+
+        <form id="formRequest" class="space-y-4">
+            
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Nama Peminta</label>
+                <input type="text" id="namaUser" required placeholder="Contoh: Budi Santoso" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Departemen</label>
+                <select id="departemen" required class="w-full p-3 border border-gray-300 rounded-lg outline-none">
+                    <option value="">-- Pilih Departemen --</option>
+                    <option value="Produksi">Produksi</option>
+                    <option value="Maintenance">Maintenance</option>
+                    <option value="QA">Quality Assurance (QA)</option>
+                    <option value="GA">General Affair (GA)</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Kategori Request</label>
+                <select id="tujuan" required class="w-full p-3 border border-gray-300 rounded-lg outline-none bg-blue-50">
+                    <option value="PROC">Kebutuhan Pabrik (PROC)</option>
+                    <option value="GA">Kebutuhan Umum / Kantor (GA)</option>
+                </select>
+            </div>
+
+            <!-- FITUR BARU: Dropdown Kategori -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1 text-blue-600">Filter Kategori Barang</label>
+                <select id="kategoriBarang" class="w-full p-3 border border-blue-400 rounded-lg outline-none bg-blue-50">
+                    <option value="">Sedang memuat kategori...</option>
+                </select>
+            </div>
+
+            <!-- Dropdown Barang (Sekarang bergantung pada Kategori) -->
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Pilih Barang</label>
+                <select id="pilihBarang" required class="w-full p-3 border border-gray-300 rounded-lg outline-none bg-gray-50" disabled>
+                    <option value="">-- Pilih Kategori Terlebih Dahulu --</option>
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Jumlah Dibutuhkan</label>
+                <input type="number" id="jumlah" min="1" required placeholder="0" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+            </div>
+
+            <button type="submit" id="btnSubmit" class="w-full bg-blue-600 text-white font-bold py-3 rounded-lg hover:bg-blue-700 transition duration-300 shadow-md mt-4">
+                Kirim Permohonan
+            </button>
+        </form>
+    </div>
+
+    <script>
+        // ==========================================
+        // AREA PENGATURAN API
+        // ==========================================
+        const apiURL = "https://script.google.com/macros/s/AKfycbyM05uzrvk0c-axvGlRWO5539PeXgytASeJSb2Lohg90hXU59KcAnk6uan86eWLmiLLsA/exec"; // <-- JANGAN LUPA GANTI INI
+        
+        let masterBarang = []; 
+
+        // 1. Fungsi mengambil data saat awal buka aplikasi
+        async function muatDataBarang() {
+            try {
+                const response = await fetch(apiURL + "?action=getBarang");
+                const result = await response.json();
+
+                if(result.status === "success") {
+                    masterBarang = result.data;
+                    
+                    // Ekstrak nama Kategori yang unik dari database (mengabaikan yang kosong atau strip)
+                    const kategoriUnik = [...new Set(masterBarang
+                        .map(item => item.Kategori)
+                        .filter(k => k && k.trim() !== '-' && k.trim() !== ''))];
+                    
+                    // Isi dropdown Kategori
+                    let opsiKategori = '<option value="">-- Pilih Kategori --</option>';
+                    kategoriUnik.forEach(kat => {
+                        opsiKategori += `<option value="${kat}">${kat}</option>`;
+                    });
+                    document.getElementById('kategoriBarang').innerHTML = opsiKategori;
+                    
+                } else {
+                    document.getElementById('kategoriBarang').innerHTML = '<option value="">Gagal memuat data</option>';
+                }
+            } catch (error) {
+                console.error(error);
+                document.getElementById('kategoriBarang').innerHTML = '<option value="">Error jaringan</option>';
+            }
+        }
+
+        // 2. Fungsi Filter Barang saat Kategori diubah
+        document.getElementById('kategoriBarang').addEventListener('change', function() {
+            const kategoriPilihan = this.value;
+            const dropdownBarang = document.getElementById('pilihBarang');
+            
+            if (kategoriPilihan) {
+                // Aktifkan dropdown barang
+                dropdownBarang.disabled = false;
+                dropdownBarang.classList.remove('bg-gray-50');
+                
+                // Cari barang yang kategorinya cocok
+                const barangTersaring = masterBarang.filter(b => b.Kategori === kategoriPilihan);
+                
+                let opsiBarang = '<option value="">-- Pilih Barang --</option>';
+                barangTersaring.forEach(barang => {
+                    opsiBarang += `<option value="${barang.SKU}">${barang.SKU} - ${barang.NAMA_BARANG} (Stok: ${barang.Stok_Aktual})</option>`;
+                });
+                dropdownBarang.innerHTML = opsiBarang;
+                
+            } else {
+                // Matikan kembali jika kategori tidak dipilih
+                dropdownBarang.disabled = true;
+                dropdownBarang.classList.add('bg-gray-50');
+                dropdownBarang.innerHTML = '<option value="">-- Pilih Kategori Terlebih Dahulu --</option>';
+            }
+        });
+
+        // 3. Fungsi saat tombol "Kirim Permohonan" ditekan
+        document.getElementById('formRequest').addEventListener('submit', async function(e) {
+            e.preventDefault(); 
+            
+            const btnSubmit = document.getElementById('btnSubmit');
+            btnSubmit.innerHTML = "⏳ Sedang Mengirim...";
+            btnSubmit.disabled = true;
+            btnSubmit.classList.add('opacity-50');
+
+            const skuTerpilih = document.getElementById('pilihBarang').value;
+            const dataBarang = masterBarang.find(b => b.SKU === skuTerpilih);
+
+            const payload = {
+                action: "submitRequest",
+                data: {
+                    namaUser: document.getElementById('namaUser').value,
+                    departemen: document.getElementById('departemen').value,
+                    tujuan: document.getElementById('tujuan').value,
+                    sku: skuTerpilih,
+                    namaBarang: dataBarang ? dataBarang.NAMA_BARANG : "Tidak Diketahui",
+                    jumlah: document.getElementById('jumlah').value
+                }
+            };
+
+            try {
+                const response = await fetch(apiURL, {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+                
+                const result = await response.json();
+
+                if(result.status === "success") {
+                    alert(`✅ Sukses! Permohonan berhasil dikirim.\nNomor Tiket Anda: ${result.req_id}`);
+                    document.getElementById('formRequest').reset();
+                    // Reset dropdown barang ke posisi awal
+                    document.getElementById('pilihBarang').innerHTML = '<option value="">-- Pilih Kategori Terlebih Dahulu --</option>';
+                    document.getElementById('pilihBarang').disabled = true;
+                } else {
+                    alert("❌ Gagal: " + result.message);
+                }
+            } catch (error) {
+                alert("❌ Terjadi kesalahan jaringan.");
+            } finally {
+                btnSubmit.innerHTML = "Kirim Permohonan";
+                btnSubmit.disabled = false;
+                btnSubmit.classList.remove('opacity-50');
+            }
+        });
+
+        // Jalankan fungsi muat data
+        muatDataBarang();
+    </script>
+</body>
+</html>

@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Approval Manajer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 p-4 font-sans">
+
+    <div class="max-w-3xl mx-auto bg-white p-6 rounded-xl shadow-lg mt-4">
+        <div class="flex justify-between items-center mb-6 border-b pb-4">
+            <div>
+                <h1 class="text-2xl font-extrabold text-blue-800">✅ Meja Approval Manajer</h1>
+                <p class="text-sm text-gray-500">Validasi permohonan dari tim Anda</p>
+            </div>
+            <button onclick="muatDaftarPending()" class="bg-blue-100 text-blue-700 px-4 py-2 rounded font-bold hover:bg-blue-200">
+                🔄 Refresh
+            </button>
+        </div>
+
+        <!-- Area Pesan Loading -->
+        <div id="loadingMsg" class="text-center text-gray-500 font-semibold my-8">Sedang memeriksa antrean tiket...</div>
+
+        <!-- Area Daftar Tiket -->
+        <div id="areaTiket" class="space-y-4 hidden">
+            <!-- Kartu tiket akan muncul di sini otomatis -->
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // AREA PENGATURAN API
+        // ==========================================
+        const apiURL = "https://script.google.com/macros/s/AKfycbyM05uzrvk0c-axvGlRWO5539PeXgytASeJSb2Lohg90hXU59KcAnk6uan86eWLmiLLsA/exec"; // <-- GANTI DENGAN URL ANDA
+        
+        async function muatDaftarPending() {
+            const areaTiket = document.getElementById('areaTiket');
+            const loadingMsg = document.getElementById('loadingMsg');
+            
+            areaTiket.innerHTML = ''; // Kosongkan area
+            areaTiket.classList.add('hidden');
+            loadingMsg.classList.remove('hidden');
+            loadingMsg.innerHTML = "Sedang memeriksa antrean tiket...";
+
+            try {
+                const response = await fetch(apiURL + "?action=getPending");
+                const result = await response.json();
+
+                if(result.status === "success") {
+                    const data = result.data;
+                    
+                    if(data.length === 0) {
+                        loadingMsg.innerHTML = "🎉 Hore! Tidak ada tiket permohonan yang perlu di-approve saat ini.";
+                        return;
+                    }
+
+                    loadingMsg.classList.add('hidden');
+                    areaTiket.classList.remove('hidden');
+
+                    let htmlTiket = '';
+                    data.forEach(tiket => {
+                        htmlTiket += `
+                        <div class="border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition bg-gray-50">
+                            <div class="flex justify-between items-start mb-3">
+                                <div>
+                                    <span class="bg-yellow-200 text-yellow-800 text-xs font-bold px-2 py-1 rounded">${tiket.Req_ID}</span>
+                                    <span class="text-xs text-gray-500 ml-2">${tiket.Tanggal_Request}</span>
+                                </div>
+                                <span class="bg-gray-200 text-gray-700 text-xs font-bold px-2 py-1 rounded">${tiket.Departemen} / ${tiket.Tujuan_Pembelian}</span>
+                            </div>
+                            
+                            <h3 class="text-lg font-bold text-gray-800">${tiket.Nama_Barang}</h3>
+                            <p class="text-sm text-gray-600 mb-4">Pemohon: <b>${tiket.User_Peminta}</b> | Jumlah: <b class="text-blue-600 text-lg">${tiket.Jumlah_Diminta}</b></p>
+                            
+                            <div class="flex gap-2">
+                                <button onclick="prosesTiket('${tiket.Req_ID}', 'Approve')" class="flex-1 bg-green-600 text-white font-bold py-2 rounded hover:bg-green-700">
+                                    ✅ Setujui
+                                </button>
+                                <button onclick="prosesTiket('${tiket.Req_ID}', 'Reject')" class="flex-1 bg-red-500 text-white font-bold py-2 rounded hover:bg-red-600">
+                                    ❌ Tolak
+                                </button>
+                            </div>
+                        </div>
+                        `;
+                    });
+                    areaTiket.innerHTML = htmlTiket;
+                    
+                } else {
+                    loadingMsg.innerHTML = "Gagal memuat data: " + result.message;
+                }
+            } catch (error) {
+                loadingMsg.innerHTML = "Error jaringan, gagal terhubung ke server.";
+            }
+        }
+
+        async function prosesTiket(reqID, keputusan) {
+            // Konfirmasi sebelum aksi
+            if(!confirm(`Anda yakin ingin me-${keputusan} tiket ${reqID}?`)) return;
+
+            const payload = {
+                action: "updateStatus",
+                req_id: reqID,
+                keputusan: keputusan
+            };
+
+            try {
+                // Beri efek loading di layar
+                document.getElementById('loadingMsg').classList.remove('hidden');
+                document.getElementById('loadingMsg').innerHTML = `⏳ Memproses ${reqID}...`;
+                document.getElementById('areaTiket').classList.add('hidden');
+
+                const response = await fetch(apiURL, {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+
+                if(result.status === "success") {
+                    alert(result.message); // Menampilkan rute otomatisnya
+                    muatDaftarPending(); // Refresh tabel otomatis
+                } else {
+                    alert("❌ Gagal: " + result.message);
+                    muatDaftarPending();
+                }
+            } catch (error) {
+                alert("❌ Terjadi kesalahan jaringan.");
+                muatDaftarPending();
+            }
+        }
+
+        // Jalankan saat web dibuka
+        muatDaftarPending();
+    </script>
+</body>
+</html>
